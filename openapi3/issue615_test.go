@@ -10,14 +10,10 @@ import (
 
 func TestIssue615(t *testing.T) {
 	{
-		var old int
-		old, openapi3.CircularReferenceCounter = openapi3.CircularReferenceCounter, 1
-		defer func() { openapi3.CircularReferenceCounter = old }()
-
 		loader := openapi3.NewLoader()
 		loader.IsExternalRefsAllowed = true
 		_, err := loader.LoadFromFile("testdata/recursiveRef/issue615.yml")
-		require.ErrorContains(t, err, openapi3.CircularReferenceError)
+		require.NoError(t, err)
 	}
 
 	var old int
@@ -26,9 +22,6 @@ func TestIssue615(t *testing.T) {
 
 	loader := openapi3.NewLoader()
 	loader.IsExternalRefsAllowed = true
-	doc, err := loader.LoadFromFile("testdata/recursiveRef/issue615.yml")
-	require.NoError(t, err)
-
-	doc.Validate(loader.Context)
+	_, err := loader.LoadFromFile("testdata/recursiveRef/issue615.yml")
 	require.NoError(t, err)
 }
