@@ -1,3 +1,13 @@
+This is fork of [kin-openapi](https://github.com/getkin/kin-openapi)
+for [Openapi5G](https://github.com/ShouheiNishi/openapi5g).
+
+Base version is [v0.118.0](https://github.com/getkin/kin-openapi/releases/tag/v0.118.0).
+
+To avoid [issue#791](https://github.com/getkin/kin-openapi/issues/791).
+Revert [47d329d](https://github.com/getkin/kin-openapi/commit/47d329de64b53c80e00aa1ae9aff91df509af418)
+
+---
+
 [![CI](https://github.com/getkin/kin-openapi/workflows/go/badge.svg)](https://github.com/getkin/kin-openapi/actions)
 [![Go Report Card](https://goreportcard.com/badge/github.com/getkin/kin-openapi)](https://goreportcard.com/report/github.com/getkin/kin-openapi)
 [![GoDoc](https://godoc.org/github.com/getkin/kin-openapi?status.svg)](https://godoc.org/github.com/getkin/kin-openapi)
