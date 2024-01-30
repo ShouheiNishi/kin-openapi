@@ -71,7 +71,7 @@ func (operation *Operation) UnmarshalJSON(data []byte) error {
 	type OperationBis Operation
 	var x OperationBis
 	if err := json.Unmarshal(data, &x); err != nil {
-		return err
+		return unmarshalError(err)
 	}
 	_ = json.Unmarshal(data, &x.Extensions)
 	delete(x.Extensions, "summary")
@@ -86,6 +86,9 @@ func (operation *Operation) UnmarshalJSON(data []byte) error {
 	delete(x.Extensions, "produces")
 	delete(x.Extensions, "schemes")
 	delete(x.Extensions, "security")
+	if len(x.Extensions) == 0 {
+		x.Extensions = nil
+	}
 	*operation = Operation(x)
 	return nil
 }

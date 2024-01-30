@@ -82,7 +82,7 @@ func (doc *T) UnmarshalJSON(data []byte) error {
 	type TBis T
 	var x TBis
 	if err := json.Unmarshal(data, &x); err != nil {
-		return err
+		return unmarshalError(err)
 	}
 	_ = json.Unmarshal(data, &x.Extensions)
 	delete(x.Extensions, "swagger")
@@ -100,6 +100,9 @@ func (doc *T) UnmarshalJSON(data []byte) error {
 	delete(x.Extensions, "securityDefinitions")
 	delete(x.Extensions, "security")
 	delete(x.Extensions, "tags")
+	if len(x.Extensions) == 0 {
+		x.Extensions = nil
+	}
 	*doc = T(x)
 	return nil
 }

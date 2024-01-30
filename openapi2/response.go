@@ -47,7 +47,7 @@ func (response *Response) UnmarshalJSON(data []byte) error {
 	type ResponseBis Response
 	var x ResponseBis
 	if err := json.Unmarshal(data, &x); err != nil {
-		return err
+		return unmarshalError(err)
 	}
 	_ = json.Unmarshal(data, &x.Extensions)
 	delete(x.Extensions, "$ref")
@@ -55,6 +55,9 @@ func (response *Response) UnmarshalJSON(data []byte) error {
 	delete(x.Extensions, "schema")
 	delete(x.Extensions, "headers")
 	delete(x.Extensions, "examples")
+	if len(x.Extensions) == 0 {
+		x.Extensions = nil
+	}
 	*response = Response(x)
 	return nil
 }

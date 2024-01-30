@@ -1,7 +1,7 @@
 This is fork of [kin-openapi](https://github.com/getkin/kin-openapi)
 for [Openapi5G](https://github.com/ShouheiNishi/openapi5g).
 
-Base version is [v0.118.0](https://github.com/getkin/kin-openapi/releases/tag/v0.118.0).
+Base version is [v0.122.0](https://github.com/getkin/kin-openapi/releases/tag/v0.122.0).
 
 To avoid [issue#791](https://github.com/getkin/kin-openapi/issues/791).
 Revert [47d329d](https://github.com/getkin/kin-openapi/commit/47d329de64b53c80e00aa1ae9aff91df509af418)
@@ -27,7 +27,13 @@ The project has received pull requests [from many people](https://github.com/get
 Be sure to [give back to this project](https://github.com/sponsors/fenollp) like our sponsors:
 
 <p align="center">
-	<a href="//www.speakeasyapi.dev"><img src=".github/sponsors/speakeasy.png" alt="Speakeasy" height="100px"/></a>
+	<a href="https://speakeasyapi.dev/?utm_source=kinopenapi+repo&utm_medium=github+sponsorship">
+		<picture>
+		  <source media="(prefers-color-scheme: light)" srcset=".github/sponsors/speakeasy-github-sponsor-light.svg">
+		  <source media="(prefers-color-scheme: dark)" srcset=".github/sponsors/speakeasy-github-sponsor-dark.svg">
+		  <img alt="Speakeasy logo" src=".github/sponsors/speakeasy-github-sponsor-dark.svg" height="100px">
+		</picture>
+	</a>
 </p>
 
 Here's some projects that depend on _kin-openapi_:
@@ -40,6 +46,7 @@ Here's some projects that depend on _kin-openapi_:
   * [github.com/hashicorp/nomad-openapi](https://github.com/hashicorp/nomad-openapi) - "Nomad is an easy-to-use, flexible, and performant workload orchestrator that can deploy a mix of microservice, batch, containerized, and non-containerized applications. Nomad is easy to operate and scale and has native Consul and Vault integrations."
   * [gitlab.com/jamietanna/httptest-openapi](https://gitlab.com/jamietanna/httptest-openapi) ([*blog post*](https://www.jvt.me/posts/2022/05/22/go-openapi-contract-test/)) - "Go OpenAPI Contract Verification for use with `net/http`"
   * [github.com/SIMITGROUP/openapigenerator](https://github.com/SIMITGROUP/openapigenerator) - "Openapi v3 microservices generator"
+  * [https://github.com/projectsveltos/addon-controller](https://github.com/projectsveltos/addon-controller) - "Kubernetes add-on controller designed to manage tens of clusters."
   * (Feel free to add your project by [creating an issue](https://github.com/getkin/kin-openapi/issues/new) or a pull request)
 
 ## Alternatives
@@ -67,20 +74,21 @@ Be sure to check [OpenAPI Initiative](https://github.com/OAI)'s [great tooling l
 # Some recipes
 ## Validating an OpenAPI document
 ```shell
-go run github.com/getkin/kin-openapi/cmd/validate@latest [--defaults] [--examples] [--ext] [--patterns] -- <local YAML or JSON file>
+go run github.com/getkin/kin-openapi/cmd/validate@latest [--circular] [--defaults] [--examples] [--ext] [--patterns] -- <local YAML or JSON file>
 ```
 
 ## Loading OpenAPI document
 Use `openapi3.Loader`, which resolves all references:
 ```go
-doc, err := openapi3.NewLoader().LoadFromFile("swagger.json")
+loader := openapi3.NewLoader()
+doc, err := loader.LoadFromFile("my-openapi-spec.json")
 ```
 
 ## Getting OpenAPI operation that matches request
 ```go
 loader := openapi3.NewLoader()
 doc, _ := loader.LoadFromData([]byte(`...`))
-_ := doc.Validate(loader.Context)
+_ = doc.Validate(loader.Context)
 router, _ := gorillamux.NewRouter(doc)
 route, pathParams, _ := router.FindRoute(httpRequest)
 // Do something with route.Operation
@@ -105,7 +113,7 @@ func main() {
 	loader := &openapi3.Loader{Context: ctx, IsExternalRefsAllowed: true}
 	doc, _ := loader.LoadFromFile(".../My-OpenAPIv3-API.yml")
 	// Validate document
-	_ := doc.Validate(ctx)
+	_ = doc.Validate(ctx)
 	router, _ := gorillamux.NewRouter(doc)
 	httpReq, _ := http.NewRequest(http.MethodGet, "/items", nil)
 
@@ -118,7 +126,7 @@ func main() {
 		PathParams: pathParams,
 		Route:      route,
 	}
-	_ := openapi3filter.ValidateRequest(ctx, requestValidationInput)
+	_ = openapi3filter.ValidateRequest(ctx, requestValidationInput)
 
 	// Handle that request
 	// --> YOUR CODE GOES HERE <--
@@ -133,7 +141,7 @@ func main() {
 		Header:                 responseHeaders,
 	}
 	responseValidationInput.SetBodyBytes(responseBody)
-	_ := openapi3filter.ValidateResponse(ctx, responseValidationInput)
+	_ = openapi3filter.ValidateResponse(ctx, responseValidationInput)
 }
 ```
 
@@ -169,13 +177,13 @@ func main() {
 }
 
 func xmlBodyDecoder(body io.Reader, h http.Header, schema *openapi3.SchemaRef, encFn openapi3filter.EncodingFn) (decoded interface{}, err error) {
-	// Decode body to a primitive, []inteface{}, or map[string]interface{}.
+	// Decode body to a primitive, []interface{}, or map[string]interface{}.
 }
 ```
 
 ## Custom function to check uniqueness of array items
 
-By defaut, the library check unique items by below predefined function
+By default, the library check unique items by below predefined function
 
 ```go
 func isSliceOfUniqueItems(xs []interface{}) bool {
@@ -277,7 +285,18 @@ func safeErrorMessage(err *openapi3.SchemaError) string {
 
 This will change the schema validation errors to return only the `Reason` field, which is guaranteed to not include the original value.
 
-## Sub-v0 breaking API changes
+## CHANGELOG: Sub-v1 breaking API changes
+
+### v0.122.0
+* `Paths` field of `openapi3.T` is now a pointer
+* `Responses` field of `openapi3.Operation` is now a pointer
+* `openapi3.Paths` went from `map[string]*PathItem` to a struct with an `Extensions` field and methods: `Set`, `Value`, `Len`, `Map`, and `New*`.
+* `openapi3.Callback` went from `map[string]*PathItem` to a struct with an `Extensions` field and methods: `Set`, `Value`, `Len`, `Map`, and `New*`.
+* `openapi3.Responses` went from `map[string]*ResponseRef` to a struct with an `Extensions` field and methods: `Set`, `Value`, `Len`, `Map`, and `New*`.
+* `(openapi3.Responses).Get(int)` renamed to `(*openapi3.Responses).Status(int)`
+
+### v0.121.0
+* Introduce `openapi3.RequestBodies` (an alias on `map[string]*openapi3.ResponseRef`) and use it in place of `openapi3.Responses` for field `openapi3.Components.Responses`.
 
 ### v0.116.0
 * Dropped `openapi3filter.DefaultOptions`. Use `&openapi3filter.Options{}` directly instead.

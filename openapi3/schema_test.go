@@ -180,6 +180,57 @@ var schemaExamples = []schemaExample{
 	},
 
 	{
+		Title: "ANYOF NULLABLE CHILD",
+		Schema: NewAnyOfSchema(
+			NewIntegerSchema().WithNullable(),
+			NewFloat64Schema(),
+		),
+		Serialization: map[string]interface{}{
+			"anyOf": []interface{}{
+				map[string]interface{}{"type": "integer", "nullable": true},
+				map[string]interface{}{"type": "number"},
+			},
+		},
+		AllValid: []interface{}{
+			nil,
+			42,
+			4.2,
+		},
+		AllInvalid: []interface{}{
+			true,
+			[]interface{}{42},
+			"bla",
+			map[string]interface{}{},
+		},
+	},
+
+	{
+		Title: "NULLABLE ALLOF",
+		Schema: NewAllOfSchema(
+			NewBoolSchema().WithNullable(),
+			NewBoolSchema().WithNullable(),
+		),
+		Serialization: map[string]interface{}{
+			"allOf": []interface{}{
+				map[string]interface{}{"type": "boolean", "nullable": true},
+				map[string]interface{}{"type": "boolean", "nullable": true},
+			},
+		},
+		AllValid: []interface{}{
+			nil,
+			true,
+			false,
+		},
+		AllInvalid: []interface{}{
+			2,
+			4.2,
+			[]interface{}{42},
+			"bla",
+			map[string]interface{}{},
+		},
+	},
+
+	{
 		Title:  "BOOLEAN",
 		Schema: NewBoolSchema(),
 		Serialization: map[string]interface{}{
@@ -491,7 +542,7 @@ var schemaExamples = []schemaExample{
 				map[string]interface{}{
 					"key1": 1,
 					"key2": 1,
-					// Additioanl properties will make object different
+					// Additional properties will make object different
 					// By default additionalProperties is true
 				},
 				map[string]interface{}{
@@ -1277,8 +1328,12 @@ var schemaMultiErrorExamples = []schemaMultiErrorExample{
 }
 
 func TestIssue283(t *testing.T) {
-	const api = `
+	spec := []byte(`
 openapi: "3.0.1"
+paths: {}
+info:
+  version: 1.1.1
+  title: title
 components:
   schemas:
     Test:
@@ -1289,18 +1344,23 @@ components:
           not:
             type: boolean
       type: object
-`
+`[1:])
+
 	data := map[string]interface{}{
 		"name":      "kin-openapi",
 		"ownerName": true,
 	}
-	s, err := NewLoader().LoadFromData([]byte(api))
+
+	loader := NewLoader()
+	doc, err := loader.LoadFromData(spec)
 	require.NoError(t, err)
-	require.NotNil(t, s)
-	err = s.Components.Schemas["Test"].Value.VisitJSON(data)
+	err = doc.Validate(loader.Context)
+	require.NoError(t, err)
+
+	err = doc.Components.Schemas["Test"].Value.VisitJSON(data)
 	require.NotNil(t, err)
 	require.NotEqual(t, errSchema, err)
-	require.Contains(t, err.Error(), `Error at "/ownerName": Doesn't match schema "not"`)
+	require.ErrorContains(t, err, `Error at "/ownerName": Doesn't match schema "not"`)
 }
 
 func TestValidationFailsOnInvalidPattern(t *testing.T) {

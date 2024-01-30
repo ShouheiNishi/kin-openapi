@@ -13,6 +13,10 @@ import (
 
 // ToV3 converts an OpenAPIv2 spec to an OpenAPIv3 spec
 func ToV3(doc2 *openapi2.T) (*openapi3.T, error) {
+	return ToV3WithLoader(doc2, openapi3.NewLoader(), nil)
+}
+
+func ToV3WithLoader(doc2 *openapi2.T, loader *openapi3.Loader, location *url.URL) (*openapi3.T, error) {
 	doc3 := &openapi3.T{
 		OpenAPI:      "3.0.3",
 		Info:         &doc2.Info,
@@ -67,19 +71,18 @@ func ToV3(doc2 *openapi2.T) (*openapi3.T, error) {
 	}
 
 	if paths := doc2.Paths; len(paths) != 0 {
-		doc3Paths := make(map[string]*openapi3.PathItem, len(paths))
+		doc3.Paths = openapi3.NewPathsWithCapacity(len(paths))
 		for path, pathItem := range paths {
 			r, err := ToV3PathItem(doc2, doc3.Components, pathItem, doc2.Consumes)
 			if err != nil {
 				return nil, err
 			}
-			doc3Paths[path] = r
+			doc3.Paths.Set(path, r)
 		}
-		doc3.Paths = doc3Paths
 	}
 
 	if responses := doc2.Responses; len(responses) != 0 {
-		doc3.Components.Responses = make(map[string]*openapi3.ResponseRef, len(responses))
+		doc3.Components.Responses = make(openapi3.ResponseBodies, len(responses))
 		for k, response := range responses {
 			r, err := ToV3Response(response, doc2.Produces)
 			if err != nil {
@@ -106,12 +109,11 @@ func ToV3(doc2 *openapi2.T) (*openapi3.T, error) {
 	}
 
 	doc3.Security = ToV3SecurityRequirements(doc2.Security)
-	{
-		sl := openapi3.NewLoader()
-		if err := sl.ResolveRefsIn(doc3, nil); err != nil {
-			return nil, err
-		}
+
+	if err := loader.ResolveRefsIn(doc3, location); err != nil {
+		return nil, err
 	}
+
 	return doc3, nil
 }
 
@@ -186,15 +188,14 @@ func ToV3Operation(doc2 *openapi2.T, components *openapi3.Components, pathItem *
 	}
 
 	if responses := operation.Responses; responses != nil {
-		doc3Responses := make(openapi3.Responses, len(responses))
+		doc3.Responses = openapi3.NewResponsesWithCapacity(len(responses))
 		for k, response := range responses {
-			doc3, err := ToV3Response(response, operation.Produces)
+			responseRef3, err := ToV3Response(response, operation.Produces)
 			if err != nil {
 				return nil, err
 			}
-			doc3Responses[k] = doc3
+			doc3.Responses.Set(k, responseRef3)
 		}
-		doc3.Responses = doc3Responses
 	}
 	return doc3, nil
 }
@@ -337,6 +338,12 @@ func formDataBody(bodies map[string]*openapi3.SchemaRef, reqs map[string]bool, c
 		}
 		if req {
 			requireds = append(requireds, propName)
+		}
+	}
+	for s, ref := range bodies {
+		if ref.Value != nil && len(ref.Value.Required) > 0 {
+			ref.Value.Required = nil
+			bodies[s] = ref
 		}
 	}
 	schema := &openapi3.Schema{
@@ -605,13 +612,15 @@ func FromV3(doc3 *openapi3.T) (*openapi2.T, error) {
 			}
 		}
 	}
+
 	if isHTTPS {
 		doc2.Schemes = append(doc2.Schemes, "https")
 	}
 	if isHTTP {
 		doc2.Schemes = append(doc2.Schemes, "http")
 	}
-	for path, pathItem := range doc3.Paths {
+
+	for path, pathItem := range doc3.Paths.Map() {
 		if pathItem == nil {
 			continue
 		}
@@ -701,7 +710,7 @@ func fromV3RequestBodies(name string, requestBodyRef *openapi3.RequestBodyRef, c
 		return
 	}
 
-	//Only select one formData or request body for an individual requestBody as OpenAPI 2 does not support multiples
+	// Only select one formData or request body for an individual requestBody as OpenAPI 2 does not support multiples
 	if requestBodyRef.Value != nil {
 		for contentType, mediaType := range requestBodyRef.Value.Content {
 			if consumes == nil {
@@ -818,6 +827,9 @@ func FromV3SchemaRef(schema *openapi3.SchemaRef, components *openapi3.Components
 	}
 	if schema.Value.Nullable {
 		schema.Value.Nullable = false
+		if schema.Value.Extensions == nil {
+			schema.Value.Extensions = make(map[string]interface{})
+		}
 		schema.Value.Extensions["x-nullable"] = true
 	}
 
@@ -971,7 +983,7 @@ func FromV3Operation(doc3 *openapi3.T, operation *openapi3.Operation) (*openapi2
 	sort.Sort(result.Parameters)
 
 	if responses := operation.Responses; responses != nil {
-		resultResponses, err := FromV3Responses(responses, doc3.Components)
+		resultResponses, err := FromV3Responses(responses.Map(), doc3.Components)
 		if err != nil {
 			return nil, err
 		}

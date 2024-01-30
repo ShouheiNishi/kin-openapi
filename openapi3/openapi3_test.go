@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/invopop/yaml"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
@@ -24,10 +25,10 @@ func TestRefsJSON(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	t.Log("Resolve refs in unmarshalled *T")
+	t.Log("Resolve refs in unmarshaled *T")
 	err = loader.ResolveRefsIn(docA, nil)
 	require.NoError(t, err)
-	t.Log("Resolve refs in marshalled *T")
+	t.Log("Resolve refs in marshaled *T")
 	docB, err := loader.LoadFromData(data)
 	require.NoError(t, err)
 	require.NotEmpty(t, docB)
@@ -62,10 +63,10 @@ func TestRefsYAML(t *testing.T) {
 	require.NoError(t, err)
 	require.NotEmpty(t, data)
 
-	t.Log("Resolve refs in unmarshalled *T")
+	t.Log("Resolve refs in unmarshaled *T")
 	err = loader.ResolveRefsIn(docA, nil)
 	require.NoError(t, err)
-	t.Log("Resolve refs in marshalled *T")
+	t.Log("Resolve refs in marshaled *T")
 	docB, err := loader.LoadFromData(data)
 	require.NoError(t, err)
 	require.NotEmpty(t, docB)
@@ -271,8 +272,8 @@ func spec() *T {
 			Title:   "MyAPI",
 			Version: "0.1",
 		},
-		Paths: Paths{
-			"/hello": &PathItem{
+		Paths: NewPaths(
+			WithPath("/hello", &PathItem{
 				Post: &Operation{
 					Parameters: Parameters{
 						{
@@ -284,12 +285,12 @@ func spec() *T {
 						Ref:   "#/components/requestBodies/someRequestBody",
 						Value: requestBody,
 					},
-					Responses: Responses{
-						"200": &ResponseRef{
+					Responses: NewResponses(
+						WithStatus(200, &ResponseRef{
 							Ref:   "#/components/responses/someResponse",
 							Value: response,
-						},
-					},
+						}),
+					),
 				},
 				Parameters: Parameters{
 					{
@@ -297,49 +298,31 @@ func spec() *T {
 						Value: parameter,
 					},
 				},
-			},
-		},
+			}),
+		),
 		Components: &Components{
 			Parameters: ParametersMap{
-				"someParameter": {
-					Value: parameter,
-				},
+				"someParameter": {Value: parameter},
 			},
 			RequestBodies: RequestBodies{
-				"someRequestBody": {
-					Value: requestBody,
-				},
+				"someRequestBody": {Value: requestBody},
 			},
-			Responses: Responses{
-				"someResponse": {
-					Value: response,
-				},
+			Responses: ResponseBodies{
+				"someResponse": {Value: response},
 			},
 			Schemas: Schemas{
-				"someSchema": {
-					Value: schema,
-				},
+				"someSchema": {Value: schema},
 			},
 			Headers: Headers{
-				"someHeader": {
-					Ref: "#/components/headers/otherHeader",
-				},
-				"otherHeader": {
-					Value: &Header{Parameter{Schema: &SchemaRef{Value: NewStringSchema()}}},
-				},
+				"someHeader":  {Ref: "#/components/headers/otherHeader"},
+				"otherHeader": {Value: &Header{Parameter{Schema: &SchemaRef{Value: NewStringSchema()}}}},
 			},
 			Examples: Examples{
-				"someExample": {
-					Ref: "#/components/examples/otherExample",
-				},
-				"otherExample": {
-					Value: NewExample(example),
-				},
+				"someExample":  {Ref: "#/components/examples/otherExample"},
+				"otherExample": {Value: NewExample(example)},
 			},
 			SecuritySchemes: SecuritySchemes{
-				"someSecurityScheme": {
-					Ref: "#/components/securitySchemes/otherSecurityScheme",
-				},
+				"someSecurityScheme": {Ref: "#/components/securitySchemes/otherSecurityScheme"},
 				"otherSecurityScheme": {
 					Value: &SecurityScheme{
 						Description: "Some security scheme",
@@ -467,4 +450,38 @@ components:
 			}
 		})
 	}
+}
+
+func TestAddRemoveServer(t *testing.T) {
+	testServerLines := []*Server{{URL: "test0.com"}, {URL: "test1.com"}, {URL: "test3.com"}}
+
+	doc3 := &T{
+		OpenAPI:    "3.0.3",
+		Components: &Components{},
+	}
+
+	assert.Empty(t, doc3.Servers)
+
+	doc3.AddServer(&Server{URL: "testserver1.com"})
+
+	assert.NotEmpty(t, doc3.Servers)
+	assert.Len(t, doc3.Servers, 1)
+
+	doc3.Servers = Servers{}
+
+	assert.Empty(t, doc3.Servers)
+
+	doc3.AddServers(testServerLines[0], testServerLines[1], testServerLines[2])
+
+	assert.NotEmpty(t, doc3.Servers)
+	assert.Len(t, doc3.Servers, 3)
+
+	doc3.Servers = Servers{}
+
+	doc3.AddServers(testServerLines...)
+
+	assert.NotEmpty(t, doc3.Servers)
+	assert.Len(t, doc3.Servers, 3)
+
+	doc3.Servers = Servers{}
 }

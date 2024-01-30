@@ -2,11 +2,9 @@ package openapi3filter_test
 
 import (
 	"bytes"
-	"context"
 	"encoding/json"
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"path"
@@ -166,11 +164,11 @@ func (h *validatorTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request)
 }
 
 func TestValidator(t *testing.T) {
-	doc, err := openapi3.NewLoader().LoadFromData([]byte(validatorSpec))
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromData([]byte(validatorSpec))
 	require.NoError(t, err, "failed to load test fixture spec")
 
-	ctx := context.Background()
-	err = doc.Validate(ctx)
+	err = doc.Validate(loader.Context)
 	require.NoError(t, err, "invalid test fixture spec")
 
 	type testRequest struct {
@@ -364,14 +362,14 @@ func TestValidator(t *testing.T) {
 			// needed by the router which matches request routes for OpenAPI
 			// validation.
 			doc.Servers = []*openapi3.Server{{URL: s.URL}}
-			err = doc.Validate(ctx)
+			err = doc.Validate(loader.Context)
 			require.NoError(t, err, "failed to validate with test server")
 
 			// Create the router and validator
 			router, err := gorillamux.NewRouter(doc)
 			require.NoError(t, err, "failed to create router")
 
-			// Now wrap the test handler with the validator middlware
+			// Now wrap the test handler with the validator middleware
 			v := openapi3filter.NewValidator(router, append(test.options, openapi3filter.Strict(test.strict))...)
 			h = v.Middleware(&test.handler)
 
@@ -392,7 +390,7 @@ func TestValidator(t *testing.T) {
 			require.Equalf(t, test.response.statusCode, resp.StatusCode,
 				"response code expect %d got %d", test.response.statusCode, resp.StatusCode)
 
-			body, err := ioutil.ReadAll(resp.Body)
+			body, err := io.ReadAll(resp.Body)
 			require.NoError(t, err, "failed to read response body")
 			require.Equalf(t, test.response.body, string(body),
 				"response body expect %q got %q", test.response.body, string(body))
@@ -403,7 +401,8 @@ func TestValidator(t *testing.T) {
 func ExampleValidator() {
 	// OpenAPI specification for a simple service that squares integers, with
 	// some limitations.
-	doc, err := openapi3.NewLoader().LoadFromData([]byte(`
+	loader := openapi3.NewLoader()
+	doc, err := loader.LoadFromData([]byte(`
 openapi: 3.0.0
 info:
   title: 'Validator - square example'
@@ -431,8 +430,14 @@ paths:
                     minimum: 0
                     maximum: 1000000
                 required: [result]
-                additionalProperties: false`[1:]))
+                additionalProperties: false
+`[1:]))
 	if err != nil {
+		panic(err)
+	}
+
+	// Make sure that OpenAPI document is correct
+	if err = doc.Validate(loader.Context); err != nil {
 		panic(err)
 	}
 
@@ -448,7 +453,7 @@ paths:
 		result := map[string]interface{}{"result": x * x}
 		if x == 42 {
 			// An easter egg. Unfortunately, the spec does not allow additional properties...
-			result["comment"] = "the answer to the ulitimate question of life, the universe, and everything"
+			result["comment"] = "the answer to the ultimate question of life, the universe, and everything"
 		}
 		if err = json.NewEncoder(w).Encode(&result); err != nil {
 			panic(err)
@@ -469,7 +474,7 @@ paths:
 	// Patch the OpenAPI spec to match the httptest.Server.URL. Only needed
 	// because the server URL is dynamic here.
 	doc.Servers = []*openapi3.Server{{URL: srv.URL}}
-	if err := doc.Validate(context.Background()); err != nil { // Assert our OpenAPI is valid!
+	if err := doc.Validate(loader.Context); err != nil { // Assert our OpenAPI is valid!
 		panic(err)
 	}
 	// This router is used by the validator to match requests with the OpenAPI
@@ -501,7 +506,7 @@ paths:
 			panic(err)
 		}
 		defer resp.Body.Close()
-		contents, err := ioutil.ReadAll(resp.Body)
+		contents, err := io.ReadAll(resp.Body)
 		if err != nil {
 			panic(err)
 		}
